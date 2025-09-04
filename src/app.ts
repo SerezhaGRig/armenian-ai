@@ -3,7 +3,7 @@ import dotenv from 'dotenv';
 import { ingestRouter } from './controllers/ingest';
 import { askRouter } from './controllers/ask';
 import { healthRouter } from './controllers/health';
-import { errorHandler } from './utils/error';
+import { errorHandler } from './middlewars/error';
 
 dotenv.config();
 

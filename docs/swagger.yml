@@ -74,7 +74,7 @@ paths:
                 chunksCreated: 5
                 timeTaken: 1250
         '400':
-          $ref: '#/components/responses/BadRequest'
+          $ref: '#/components/responses/ValidationErrorResponse'
         '500':
           $ref: '#/components/responses/InternalError'
 
@@ -128,7 +128,7 @@ paths:
                     data: {"type":"token","text":"for..."}
                     data: {"type":"final","citations":[{"id":"doc1#chunk0","score":0.92}]}
         '400':
-          $ref: '#/components/responses/BadRequest'
+          $ref: '#/components/responses/ValidationErrorResponse'
         '500':
           $ref: '#/components/responses/InternalError'
 
@@ -342,16 +342,6 @@ components:
           additionalProperties: true
 
   responses:
-    BadRequest:
-      description: Bad request - Invalid input data
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Error'
-          example:
-            error: "Validation failed: query must be at least 1 character"
-            requestId: "123e4567-e89b-12d3-a456-426614174000"
-
     InternalError:
       description: Internal server error
       content:
@@ -360,7 +350,26 @@ components:
             $ref: '#/components/schemas/Error'
           example:
             error: "Internal server error"
-            requestId: "123e4567-e89b-12d3-a456-426614174000"
+
+    ValidationErrorResponse:
+      description: "Validation error response"
+      content:
+        "application/json":
+          schema:
+              type: object
+              required:
+                - error
+              properties:
+                error:
+                  type: string
+                  enum:
+                    - "Validation Error"
+                details:
+                  description: "Validation details"
+                  type: array
+                  items:
+                    description: "Validation detail"
+                    type: object
 
   securitySchemes:
     ApiKeyAuth:
