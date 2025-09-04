@@ -1,4 +1,3 @@
-```markdown
 # Armenian Ai Vector Search
 
 A TypeScript web API for text ingestion, vectorization, and LLM-powered question answering.

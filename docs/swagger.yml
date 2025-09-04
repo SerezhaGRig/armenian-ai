@@ -1,0 +1,370 @@
+openapi: 3.0.3
+info:
+  title: Armenian Ai Vector Search API
+  description: |
+    A TypeScript web API for text ingestion, vectorization, and LLM-powered question answering.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:3000
+    description: Local development server
+
+tags:
+  - name: Ingestion
+    description: Document ingestion and vectorization endpoints
+  - name: Query
+    description: Question answering and search endpoints
+  - name: Health
+    description: System health and monitoring endpoints
+
+paths:
+  /ingest:
+    post:
+      tags:
+        - Ingestion
+      summary: Ingest documents
+      description: |
+        Accepts an array of documents, chunks them into smaller pieces,
+        generates vector embeddings, and stores them for later retrieval.
+        
+        The chunking process:
+        - Splits text into ~500-800 token chunks
+        - Maintains ~100 token overlap between chunks
+        - Preserves sentence boundaries when possible
+      operationId: ingestDocuments
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/Document'
+              minItems: 1
+              maxItems: 100
+            examples:
+              single:
+                summary: Single document
+                value:
+                  - id: "doc1"
+                    text: "Armenia is a mountainous country in the South Caucasus region."
+                    metadata:
+                      source: "wiki"
+                      category: "geography"
+              multiple:
+                summary: Multiple documents
+                value:
+                  - id: "doc1"
+                    text: "Armenia is known for its ancient history."
+                    metadata:
+                      source: "wiki"
+                  - id: "doc2"
+                    text: "Armenian cuisine is famous for its variety."
+                    metadata:
+                      source: "culture"
+      responses:
+        '200':
+          description: Documents successfully ingested
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestResponse'
+              example:
+                docsIngested: 2
+                chunksCreated: 5
+                timeTaken: 1250
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /ask:
+    post:
+      tags:
+        - Query
+      summary: Ask a question
+      description: |
+        Queries the vector store with a natural language question,
+        finds the most relevant text chunks using cosine similarity,
+        and generates an answer using an LLM with streaming response.
+        
+        The response is streamed as Server-Sent Events (SSE) with two event types:
+        - `token`: Individual tokens as they're generated
+        - `final`: Citations showing which documents were used
+      operationId: askQuestion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AskRequest'
+            examples:
+              simple:
+                summary: Simple question
+                value:
+                  query: "What is Armenia known for?"
+              detailed:
+                summary: Detailed query with options
+                value:
+                  query: "What is Armenia known for?"
+                  topK: 5
+                  maxTokens: 200
+      responses:
+        '200':
+          description: Streaming response via Server-Sent Events
+          content:
+            text/event-stream:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/TokenEvent'
+                  - $ref: '#/components/schemas/FinalEvent'
+              examples:
+                stream:
+                  summary: Example SSE stream
+                  value: |
+                    data: {"type":"token","text":"Armenia "}
+                    data: {"type":"token","text":"is "}
+                    data: {"type":"token","text":"known "}
+                    data: {"type":"token","text":"for..."}
+                    data: {"type":"final","citations":[{"id":"doc1#chunk0","score":0.92}]}
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      description: |
+        Returns the current health status of the API including:
+        - Service status
+        - Number of vectors stored
+        - Model information
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              example:
+                status: "ok"
+                vectorCount: 42
+                modelInfo:
+                  embedding: "all-MiniLM-L6-v2"
+                  llm: "ollama/mistral"
+        '503':
+          description: Service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    Document:
+      type: object
+      required:
+        - id
+        - text
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the document
+          example: "doc1"
+          minLength: 1
+          maxLength: 100
+        text:
+          type: string
+          description: The text content to be chunked and vectorized
+          example: "Armenia is a mountainous country in the South Caucasus region."
+        metadata:
+          type: object
+          description: Optional metadata associated with the document
+          additionalProperties: true
+          example:
+            source: "wikipedia"
+            category: "geography"
+            author: "John Doe"
+            date: "2024-01-15"
+
+    IngestResponse:
+      type: object
+      required:
+        - docsIngested
+        - chunksCreated
+        - timeTaken
+      properties:
+        docsIngested:
+          type: integer
+          description: Number of documents successfully ingested
+          example: 2
+          minimum: 0
+        chunksCreated:
+          type: integer
+          description: Total number of chunks created from all documents
+          example: 5
+          minimum: 0
+        timeTaken:
+          type: integer
+          description: Processing time in milliseconds
+          example: 1250
+          minimum: 0
+
+    AskRequest:
+      type: object
+      required:
+        - query
+      properties:
+        query:
+          type: string
+          description: Natural language question to ask
+          example: "What is Armenia known for?"
+          minLength: 1
+          maxLength: 1000
+        topK:
+          type: integer
+          description: Number of most similar chunks to retrieve
+          default: 5
+          minimum: 1
+          maximum: 20
+          example: 5
+        maxTokens:
+          type: integer
+          description: Maximum tokens in the LLM response
+          default: 200
+          minimum: 1
+          maximum: 4000
+          example: 200
+
+    TokenEvent:
+      type: object
+      required:
+        - type
+        - text
+      properties:
+        type:
+          type: string
+          enum: ["token"]
+          description: Event type for streaming tokens
+        text:
+          type: string
+          description: Text token being streamed
+          example: "Armenia "
+
+    FinalEvent:
+      type: object
+      required:
+        - type
+        - citations
+      properties:
+        type:
+          type: string
+          enum: ["final"]
+          description: Event type for final citations
+        citations:
+          type: array
+          description: Documents/chunks used to generate the answer
+          items:
+            $ref: '#/components/schemas/Citation'
+
+    Citation:
+      type: object
+      required:
+        - id
+        - score
+      properties:
+        id:
+          type: string
+          description: Chunk identifier
+          example: "doc1#chunk0"
+        score:
+          type: number
+          format: float
+          description: Cosine similarity score (0-1, higher is more similar)
+          minimum: 0
+          maximum: 1
+          example: 0.92
+
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - vectorCount
+        - modelInfo
+      properties:
+        status:
+          type: string
+          enum: ["ok", "degraded", "error"]
+          description: Current health status
+          example: "ok"
+        vectorCount:
+          type: integer
+          description: Number of vectors currently stored
+          example: 42
+          minimum: 0
+        modelInfo:
+          type: object
+          required:
+            - embedding
+            - llm
+          properties:
+            embedding:
+              type: string
+              description: Embedding model being used
+              example: "all-MiniLM-L6-v2"
+            llm:
+              type: string
+              description: LLM service being used
+              example: "ollama/mistral"
+
+    Error:
+      type: object
+      required:
+        - error
+        - requestId
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "Invalid request format"
+        requestId:
+          type: string
+          format: uuid
+          description: Unique request identifier for debugging
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        details:
+          type: object
+          description: Additional error details
+          additionalProperties: true
+
+  responses:
+    BadRequest:
+      description: Bad request - Invalid input data
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Validation failed: query must be at least 1 character"
+            requestId: "123e4567-e89b-12d3-a456-426614174000"
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Internal server error"
+            requestId: "123e4567-e89b-12d3-a456-426614174000"
+
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key for authentication (optional, for production use)
