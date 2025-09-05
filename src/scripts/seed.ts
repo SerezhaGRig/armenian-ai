@@ -1,7 +1,8 @@
 import dotenv from 'dotenv';
-import { buildEmbed, getEmbeddingModel } from '../services/embedding';
+import { buildEmbed } from '../services/embedding';
 import { VectorService } from '../services/vector';
 import { Chunk } from '../types';
+import { getEmbeddingModel } from '../instances/embeddingModel';
 
 dotenv.config();
 
@@ -69,7 +70,6 @@ const seed = async () => {
   for (const doc of seedData) {
     console.log(`Processing document: ${doc.id}`);
 
-    // For seed data, texts are short enough to not need chunking
     const chunks = [doc.text];
     const embeddings = await embed(chunks);
 

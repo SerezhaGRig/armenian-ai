@@ -1,8 +1,9 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { askSchema } from '../validators';
-import { buildEmbed, getEmbeddingModel } from '../services/embedding';
+import { buildEmbed } from '../services/embedding';
 import { mockLLMStream } from '../services/llm';
 import { VectorService } from '../services/vector';
+import { getEmbeddingModel } from '../instances/embeddingModel';
 
 const router = Router();
 

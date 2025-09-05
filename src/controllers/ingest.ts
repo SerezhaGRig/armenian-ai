@@ -2,8 +2,9 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { ingestSchema } from '../validators';
 import { Chunk } from '../types';
 import { buildChunking } from '../utils/chunking';
-import { buildEmbed, getEmbeddingModel } from '../services/embedding';
+import { buildEmbed } from '../services/embedding';
 import { VectorService } from '../services/vector';
+import { getEmbeddingModel } from '../instances/embeddingModel';
 
 const router = Router();
 
