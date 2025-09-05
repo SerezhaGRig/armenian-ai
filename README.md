@@ -40,8 +40,13 @@ npm run seed
 ```
 ## API docs
 - Located in docs/swagger.yml
-- Open with online editor: 
+- Open with online editor: https://editor-next.swagger.io/ 
 
+### Run tests
+
+```bash
+npm run test
+```
 
 ## Technical Choices
 
